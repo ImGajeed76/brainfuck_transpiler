@@ -1,0 +1,34 @@
+// ASCII character codes
+var space = 32;  // space
+var star = 42;   // asterisk '*'
+var newline = 10;  // newline
+
+// Pyramid height
+var height = 5;
+var row = 0;
+
+while (height) {
+    // Print spaces (height-1 spaces per row)
+    var spaces = height - 1;
+    while (spaces) {
+        output(space);
+        spaces = spaces - 1;
+    }
+
+    // Print stars (2*row+1 stars per row)
+    // Using only addition: row + row + 1
+    var stars = row;
+    stars = stars + row;
+    stars = stars + 1;
+    while (stars) {
+        output(star);
+        stars = stars - 1;
+    }
+
+    // Print newline
+    output(newline);
+
+    // Move to next row
+    height = height - 1;
+    row = row + 1;
+}
