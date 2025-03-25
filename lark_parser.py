@@ -138,7 +138,11 @@ class CompilerTransformer(Transformer):
         self.symbol_table = SymbolTable()
         self.code_gen = CodeGenerator()
         self.optimizer = ExpressionOptimizer(self.code_gen)
-        self.defined_constants = {}  # Store #define constants
+        self.defined_constants = {
+            # Default constants for true and false
+            "true": 1,
+            "false": 0
+        }  # Store #define constants
 
     def program(self, items):
         result = []
