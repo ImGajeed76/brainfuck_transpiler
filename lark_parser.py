@@ -39,6 +39,8 @@ class GrammarDefinition:
     expression: term
               | expression "+" term -> add
               | expression "-" term -> subtract
+              | expression "==" term -> equal
+              | expression "!=" term -> not_equal
 
     term: IDENTIFIER -> variable
         | NUMBER -> number
@@ -269,6 +271,84 @@ class CompilerTransformer(Transformer):
     def subtract(self, items):
         return self.optimizer.optimize_binary_operation(items[0], items[1], "SUB")
 
+    def equal(self, items):
+        # Generate comparison code that will set A to 1 if equal, 0 if not
+        left_code = items[0]
+        right_code = items[1]
+
+        # Temporary memory locations for comparison
+        result_addr = 0  # Will hold final result (1 or 0)
+
+        code = []
+
+        # Initialize result to 1 (assume equal)
+        code.append(self.code_gen.load_immediate(1))
+        code.append(self.code_gen.store_to_memory(result_addr))
+
+        # Calculate left expression
+        code.extend(left_code)
+        code.append(self.code_gen.store_to_memory(1))  # Store left value in temp location
+
+        # Calculate right expression
+        code.extend(right_code)  # Right result in A
+
+        # Now A has right value, load B with left value
+        code.append(self.code_gen.load_b_from_memory(1))
+
+        # SUB will set A to 0 if they're equal
+        code.append(self.code_gen.subtract())
+
+        # Use loop to conditionally set result to 0 if values differ
+        code.append(self.code_gen.loop_start())  # If A is non-zero (values not equal)
+        code.append(self.code_gen.load_immediate(0))  # Set result to 0 (false)
+        code.append(self.code_gen.store_to_memory(result_addr))
+        code.append(self.code_gen.load_immediate(0))  # Ensure we exit the loop
+        code.append(self.code_gen.loop_end())
+
+        # Load final result
+        code.append(self.code_gen.load_from_memory(result_addr))
+
+        return code
+
+    def not_equal(self, items):
+        # Similar to equal, but inverted result
+        left_code = items[0]
+        right_code = items[1]
+
+        # Temporary memory locations for comparison
+        result_addr = 0  # Will hold final result (1 or 0)
+
+        code = []
+
+        # Initialize result to 0 (assume not equal)
+        code.append(self.code_gen.load_immediate(0))
+        code.append(self.code_gen.store_to_memory(result_addr))
+
+        # Calculate left expression
+        code.extend(left_code)
+        code.append(self.code_gen.store_to_memory(1))  # Store left value in temp location
+
+        # Calculate right expression
+        code.extend(right_code)  # Right result in A
+
+        # Now A has right value, load B with left value
+        code.append(self.code_gen.load_b_from_memory(1))
+
+        # SUB will set A to 0 if they're equal
+        code.append(self.code_gen.subtract())
+
+        # Use loop to conditionally set result to 1 if values differ
+        code.append(self.code_gen.loop_start())  # If A is non-zero (values not equal)
+        code.append(self.code_gen.load_immediate(1))  # Set result to 1 (true)
+        code.append(self.code_gen.store_to_memory(result_addr))
+        code.append(self.code_gen.load_immediate(0))  # Ensure we exit the loop
+        code.append(self.code_gen.loop_end())
+
+        # Load final result
+        code.append(self.code_gen.load_from_memory(result_addr))
+
+        return code
+
     def variable(self, items):
         var_name = items[0].value
 
@@ -324,10 +404,13 @@ class CompilerTransformer(Transformer):
         # Create a control variable for the else block if needed
         go_else_address = None
         if has_else:
-            if not self.symbol_table.has_symbol("go_else"):
-                go_else_address = self.symbol_table.add_symbol("go_else")
-            else:
-                go_else_address = self.symbol_table.get_address("go_else")
+            # create a new variable to control the else block
+            i = 0
+            while not go_else_address:
+                go_else_name = f"go_else_{i}"
+                if not self.symbol_table.has_symbol(go_else_name):
+                    go_else_address = self.symbol_table.add_symbol(go_else_name)
+                i += 1
 
             # Initialize go_else to 1
             code.append(self.code_gen.load_immediate(1))
@@ -345,8 +428,6 @@ class CompilerTransformer(Transformer):
             code.append(self.code_gen.load_immediate(0))
             code.append(self.code_gen.store_to_memory(go_else_address))
 
-        # Add a dummy load of 0 to ensure condition is false after executing if block
-        code.append(self.code_gen.load_immediate(0))
         code.append(self.code_gen.loop_end())
 
         # If there's an else block, execute it conditionally
@@ -361,8 +442,6 @@ class CompilerTransformer(Transformer):
             code.append(self.code_gen.load_immediate(0))
             code.append(self.code_gen.store_to_memory(go_else_address))
 
-            # Add a dummy load of 0 to ensure condition is false after executing else block
-            code.append(self.code_gen.load_immediate(0))
             code.append(self.code_gen.loop_end())
 
         return code
