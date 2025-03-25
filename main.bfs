@@ -1,10 +1,10 @@
 // ASCII character codes
-var space = 32;  // space
-var star = 42;   // asterisk '*'
-var newline = 10;  // newline
+var space = ' ';  // space
+var star = '*';   // asterisk '*'
+var newline = '\n';  // newline
 
 // Pyramid height
-var height = 5;
+var height = 7;
 var row = 0;
 
 while (height) {

@@ -24,7 +24,7 @@ class Parser:
         self.loop_stack = []  # For tracking nested loops
         self.cursor = 0
         self.memory_offset = 3  # Start memory address for user data (reg_a, reg_b, temp)
-        self.debug = "#" if debug else ""
+        self.debug = "#\n" if debug else ""
 
     def parse(self, instructions: str) -> str:
         code = ""
@@ -44,7 +44,7 @@ class Parser:
             if instruction in self.instruction_handlers:
                 result = self.instruction_handlers[instruction](instruction, args)
                 if result:
-                    code += result + self.debug + "\n"
+                    code += result + self.debug
             else:
                 raise ValueError(f"Error: Unknown instruction '{instruction}' at line {i}")
 

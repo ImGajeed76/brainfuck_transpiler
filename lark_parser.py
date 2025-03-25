@@ -27,10 +27,12 @@ grammar = r"""
 
     term: IDENTIFIER -> variable
         | NUMBER -> number
+        | CHARACTER -> character
         | "(" expression ")" -> parenthesized
 
     IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
     NUMBER: /[0-9]+/
+    CHARACTER: /'(\\.|[^\\'])'/ 
 
     COMMENT: /\/\/[^\n]*/ | /\/\*.*?\*\//s
 
@@ -38,6 +40,7 @@ grammar = r"""
     %ignore WS
     %ignore COMMENT
 """
+
 
 
 class OptimizedCompiler(Transformer):
@@ -59,6 +62,35 @@ class OptimizedCompiler(Transformer):
         if len(items) == 1:
             return items[0]
         return items
+
+    def character(self, items):
+        # Get the character literal with quotes
+        char_token = items[0].value
+
+        # Extract the actual character (removing the quotes)
+        # Handle escaped characters if needed
+        if len(char_token) == 3:  # Simple case: 'A'
+            char = char_token[1]
+        elif char_token[1] == '\\':  # Escaped character: '\n'
+            escape_map = {
+                '\\n': '\n',
+                '\\t': '\t',
+                '\\r': '\r',
+                '\\\\': '\\',
+                '\\\'': '\'',
+                '\\0': '\0'
+            }
+            escaped_seq = char_token[1:3]
+            char = escape_map.get(escaped_seq, escaped_seq[1])
+
+        # Convert to ASCII value
+        ascii_value = ord(char)
+
+        # Ensure it fits in 8 bits
+        if ascii_value < 0 or ascii_value > 255:
+            raise Exception(f"ASCII value {ascii_value} out of range for 8-bit processor")
+
+        return [f"LOAD_A_IMM {ascii_value}"]
 
     def variable_declaration(self, items):
         var_name = items[0].value
