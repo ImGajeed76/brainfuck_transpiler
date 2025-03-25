@@ -1,17 +1,17 @@
-// ASCII character codes
-var space = ' ';  // space
-var star = '*';   // asterisk '*'
-var newline = '\n';  // newline
+#define SPACE ' '
+#define STAR '*'
+#define NEWLINE '\n'
+#define HEIGHT 7
 
 // Pyramid height
-var height = 7;
+var height = HEIGHT;
 var row = 0;
 
 while (height) {
     // Print spaces (height-1 spaces per row)
     var spaces = height - 1;
     while (spaces) {
-        output(space);
+        output(SPACE);
         spaces = spaces - 1;
     }
 
@@ -21,12 +21,12 @@ while (height) {
     stars = stars + row;
     stars = stars + 1;
     while (stars) {
-        output(star);
+        output(STAR);
         stars = stars - 1;
     }
 
     // Print newline
-    output(newline);
+    output(NEWLINE);
 
     // Move to next row
     height = height - 1;

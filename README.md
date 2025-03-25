@@ -1,127 +1,207 @@
-# BrainfuckScript (bfs)
+# Brainfuck Script - A High-Level Transpiler for Brainfuck
 
-BrainfuckScript (bfs) is a higher-level language designed to make brainfuck programming more accessible and
-maintainable. It provides a simplified syntax for common programming patterns while ultimately compiling down to pure
-brainfuck code.
+BrainfuckScript (BFS) is a human-readable programming language that transpiles to Brainfuck. While Brainfuck is notoriously difficult to write directly, BFS provides familiar syntax similar to C, making it accessible to write programs that ultimately run as Brainfuck code.
 
-## Introduction
+## Features
 
-Brainfuck is known for its extreme minimalism, making it challenging to write practical programs. BrainfuckScript
-bridges this gap by offering familiar programming constructs that automatically translate to optimized brainfuck
-instructions.
+- **C-like syntax**: Write code with familiar syntax including variables, arithmetic, and control structures
+- **Type system**: All variables are unsigned 8-bit integers (0-255)
+- **Character literals**: Automatically converts character literals like `'A'` to their ASCII values
+- **Preprocessor defines**: Use `#define` for constants
+- **File inclusion**: Include other BFS files in your code
+- **Control flow**: Conditional statements (`if`/`else`) and loops (`while`)
+- **I/O operations**: Read input and output characters
 
-## Language Features
+## Installation
 
-### Variables
+### Prerequisites
 
-```
-var name = value;  // Declare and initialize a variable
-```
+- Python 3.13 or higher
+- Poetry
 
-### Basic Arithmetic
+### Setup
 
-```
-var x = 5;
-var y = 10;
-var z = x + y;  // Addition
-var w = z - x;  // Subtraction
-```
+```bash
+# Clone the repository
+git clone https://github.com/ImGajeed76/brainfuck_transpiler
+cd brainfuck_transpiler
 
-### Control Flow
-
-```
-while (condition) {
-    // Code to execute while condition is non-zero
-}
+# Install dependencies
+poetry install
 ```
 
-### I/O Operations
+## Usage
 
-```
-output(value);  // Outputs the ASCII character corresponding to the value
-```
+```bash
+# Basic usage
+poetry run python main.py your_code.bfs -o output.bf
 
-### ASCII Constants
-
-Common practice is to define ASCII values as variables:
-
-```
-var space = 32;
-var star = 42;
-var newline = 10;
+# To see the intermediate instruction set (for debugging)
+poetry run python main.py your_code.bfs -o output.bf --debug
 ```
 
-## Compilation Process
+## Example Code
 
-BrainfuckScript analyzes your code and generates optimized brainfuck instructions that:
+The following example creates a pyramid of asterisks:
 
-1. Manage memory cells for your variables
-2. Implement arithmetic operations using brainfuck's increment/decrement
-3. Handle control structures through brainfuck's looping mechanism
-4. Translate high-level I/O into brainfuck's `.` and `,` operators
-
-## Example
-
-Here's a simple program that prints a pyramid:
-
-```
-// ASCII character codes
-var space = 32;
-var star = 42;
-var newline = 10;
+```bfs
+#define SPACE ' '
+#define STAR '*'
+#define NEWLINE '\n'
+#define HEIGHT 7
 
 // Pyramid height
-var height = 5;
+var height = HEIGHT;
 var row = 0;
 
 while (height) {
-    // Print spaces
+    // Print spaces (height-1 spaces per row)
     var spaces = height - 1;
     while (spaces) {
-        output(space);
+        output(SPACE);
         spaces = spaces - 1;
     }
-    
-    // Print stars
+
+    // Print stars (2*row+1 stars per row)
+    // Using only addition: row + row + 1
     var stars = row;
     stars = stars + row;
     stars = stars + 1;
     while (stars) {
-        output(star);
+        output(STAR);
         stars = stars - 1;
     }
-    
-    output(newline);
-    
+
+    // Print newline
+    output(NEWLINE);
+
+    // Move to next row
     height = height - 1;
     row = row + 1;
 }
 ```
 
-## Usage
+Output:
+```
+      *
+     ***
+    *****
+   *******
+  *********
+ ***********
+*************
+```
 
-> Make sure you have Python and Poetry installed on your system. Install needed dependencies by running `poetry install`.
+## Language Syntax
 
-1. Create a `code.bfs` file with your BrainfuckScript code in the same directory as the `main.py` script.
-2. Run the `main.py` script to compile your BrainfuckScript code into raw brainfuck code.
-3. Copy the generated brainfuck code and run it using a brainfuck interpreter.
+### Variables
+
+```bfs
+var name = value;  // Declare and initialize
+name = value;      // Assignment
+```
+
+All variables are unsigned 8-bit integers (0-255).
+
+### Preprocessor Directives
+
+```bfs
+#define NAME value  // Define constants
+#include "file.bfs" // Include another file
+```
+
+### Control Flow
+
+```bfs
+// While loop
+while (condition) {
+    // Code block
+}
+
+// If statement
+if (condition) {
+    // Code block
+}
+
+// If-else statement
+if (condition) {
+    // Code block
+} else {
+    // Code block
+}
+```
+
+Note: Conditions are considered true if non-zero, false if zero.
+
+### I/O Operations
+
+```bfs
+output(variable);  // Output ASCII character
+input(variable);   // Read ASCII character from input
+```
+
+## How It Works
+
+The transpiler works in two stages:
+
+1. **Parsing and Intermediate Code Generation**: The BFS code is parsed using the Lark parser, generating an intermediate instruction set.
+
+2. **Brainfuck Code Generation**: The intermediate instructions are converted to Brainfuck.
+
+### Example Intermediate Instruction Set
+
+Using the `--debug` flag shows the intermediate instruction set:
+
+```
+LOAD_A_IMM 7
+STORE_A 2
+LOAD_A_IMM 0
+STORE_A 3
+LOAD_A_MEM 2
+LOOP_START
+...
+```
+
+### Memory Model
+
+The transpiler manages memory allocation for variables. For example:
+
+```
+# Memory map:
+# height: address 2
+# row: address 3
+# spaces: address 4
+# stars: address 5
+```
+
+## Running Brainfuck Code
+
+The transpiler doesn't include a Brainfuck interpreter. To run the generated code:
+
+- Online interpreter: https://onecompiler.com/brainfk
+- Debugging tool: https://www.iamcal.com/misc/bf_debug/
 
 ## Limitations
 
-- Only supports addition and subtraction for arithmetic
-- No direct input handling in the current syntax examples
-- Limited to the core features shown in examples
-- No functions or subroutines defined
+- Only unsigned 8-bit integers (0-255)
+- Limited arithmetic operations (addition and subtraction)
+- No function support (yet)
+- No arrays (yet)
+- No string literals (yet)
 
-## Benefits
+## Future Plans
 
-- Readable code compared to raw brainfuck
-- Variable management abstracted away
-- Memory allocation handled automatically
-- Familiar syntax for programmers coming from C-like languages
+- More arithmetic operations (multiplication, division)
+- Arrays and pointers
+- Function support
+- String handling
+- Compiler optimizations
+- Built-in Brainfuck interpreter
 
-## Purpose
+## License
 
-BrainfuckScript makes brainfuck programming more approachable while maintaining the "compile to brainfuck" target,
-allowing programmers to write complex algorithms without dealing with the extreme low-level nature of raw brainfuck
-code.
+This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Feel free to submit issues or pull requests.
