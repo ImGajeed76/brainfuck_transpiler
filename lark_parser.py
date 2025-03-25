@@ -6,7 +6,13 @@ class GrammarDefinition:
     @staticmethod
     def get_grammar():
         return r"""
-    program: statement+
+    program: (define_directive | statement)+
+
+    define_directive: "#define" IDENTIFIER constant
+
+    constant: NUMBER -> number_constant
+           | CHARACTER -> character_constant
+           | STRING -> string_constant
 
     statement: variable_declaration
              | assignment
@@ -42,6 +48,7 @@ class GrammarDefinition:
     IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
     NUMBER: /[0-9]+/
     CHARACTER: /'(\\.|[^\\'])'/ 
+    STRING: /"(\\.|[^\\"])*"/
 
     COMMENT: /\/\/[^\n]*/ | /\/\*.*?\*\//s
 
@@ -131,13 +138,37 @@ class CompilerTransformer(Transformer):
         self.symbol_table = SymbolTable()
         self.code_gen = CodeGenerator()
         self.optimizer = ExpressionOptimizer(self.code_gen)
+        self.defined_constants = {}  # Store #define constants
 
-    def program(self, statements):
+    def program(self, items):
         result = []
-        for stmt in statements:
-            if stmt:  # Some statements might return None
-                result.extend(stmt)
+        for item in items:
+            if item and isinstance(item, list):  # Only append statements that generate code
+                result.extend(item)
         return result
+
+    def define_directive(self, items):
+        name = items[0].value
+        value = items[1]
+
+        # Store the defined constant value
+        self.defined_constants[name] = value
+        # Return None since #define doesn't generate code
+        return None
+
+    def number_constant(self, items):
+        return int(items[0].value)
+
+    def character_constant(self, items):
+        char_token = items[0].value
+        char = self._extract_character(char_token)
+        return ord(char)
+
+    def string_constant(self, items):
+        # For completeness, though we won't use this in the simple language
+        string_token = items[0].value
+        # Remove quotes and handle escaping
+        return string_token[1:-1]
 
     def statement(self, items):
         if len(items) == 1:
@@ -236,6 +267,18 @@ class CompilerTransformer(Transformer):
 
     def variable(self, items):
         var_name = items[0].value
+
+        # Check if it's a defined constant
+        if var_name in self.defined_constants:
+            constant_value = self.defined_constants[var_name]
+            # Generate code based on the constant type
+            if isinstance(constant_value, int):
+                return [self.code_gen.load_immediate(constant_value)]
+            # Handle other types if needed
+            else:
+                raise Exception(f"Unsupported constant type for {var_name}")
+
+        # Regular variable
         address = self.symbol_table.get_address(var_name)
         return [self.code_gen.load_from_memory(address)]
 
@@ -450,6 +493,12 @@ class Compiler:
         symbol_table_comments = ["# Memory map:"]
         for var_name, address in sorted(transformer.symbol_table.get_symbols().items(), key=lambda x: x[1]):
             symbol_table_comments.append(f"# {var_name}: address {address}")
+
+        # Add defined constants as comments
+        if transformer.defined_constants:
+            symbol_table_comments.append("\n# Defined constants:")
+            for const_name, const_value in sorted(transformer.defined_constants.items()):
+                symbol_table_comments.append(f"# {const_name}: {const_value}")
 
         symbol_table_comments.append("")  # Empty line
 
