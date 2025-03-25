@@ -217,7 +217,7 @@ class CompilerTransformer(Transformer):
         # Generate code to evaluate expression and store it
         code = expr_code.copy()  # Expression result will be in REG_A
         code.append(self.code_gen.store_to_memory(address))
-        return code
+        return ["# Variable declaration: " + var_name] + code
 
     def assignment(self, items):
         var_name = items[0].value
@@ -228,7 +228,7 @@ class CompilerTransformer(Transformer):
         # Generate code to evaluate expression and store it
         code = expr_code.copy()  # Expression result will be in REG_A
         code.append(self.code_gen.store_to_memory(address))
-        return code
+        return ["# Assignment: " + var_name] + code
 
     def input_statement(self, items):
         var_name = items[0].value
@@ -238,14 +238,14 @@ class CompilerTransformer(Transformer):
             self.code_gen.input(),
             self.code_gen.store_to_memory(address)
         ]
-        return code
+        return ["# Input statement"] + code
 
     def output_statement(self, items):
         expr_code = items[0]
 
         code = expr_code.copy()  # Expression result will be in REG_A
         code.append(self.code_gen.output())
-        return code
+        return ["# Output statement"] + code
 
     def while_statement(self, items):
         condition_code = items[0]
@@ -263,7 +263,7 @@ class CompilerTransformer(Transformer):
         code.extend(condition_code)  # Re-evaluate condition
         code.append(self.code_gen.loop_end())
 
-        return code
+        return ["# While loop"] + code
 
     def add(self, items):
         return self.optimizer.optimize_binary_operation(items[0], items[1], "ADD")
@@ -308,7 +308,7 @@ class CompilerTransformer(Transformer):
         # Load final result
         code.append(self.code_gen.load_from_memory(result_addr))
 
-        return code
+        return ["# Equal"] + code
 
     def not_equal(self, items):
         # Similar to equal, but inverted result
@@ -347,7 +347,7 @@ class CompilerTransformer(Transformer):
         # Load final result
         code.append(self.code_gen.load_from_memory(result_addr))
 
-        return code
+        return ["# Not equal"] + code
 
     def variable(self, items):
         var_name = items[0].value
@@ -364,7 +364,7 @@ class CompilerTransformer(Transformer):
 
         # Regular variable
         address = self.symbol_table.get_address(var_name)
-        return [self.code_gen.load_from_memory(address)]
+        return ["# Variable load: " + var_name] + [self.code_gen.load_from_memory(address)]
 
     def number(self, items):
         value = int(items[0].value)
@@ -444,7 +444,7 @@ class CompilerTransformer(Transformer):
 
             code.append(self.code_gen.loop_end())
 
-        return code
+        return ["# If statement"] + code
 
     def else_clause(self, items):
         # Collect all statements in the else clause
@@ -452,7 +452,7 @@ class CompilerTransformer(Transformer):
         for stmt in items:
             if stmt:  # Some statements might return None
                 else_body_code.extend(stmt)
-        return else_body_code
+        return ["# Else clause"] + else_body_code
 
 
 # Handles optimizations for expressions
@@ -476,7 +476,7 @@ class ExpressionOptimizer:
                 code = left_code.copy()  # Load left value to REG_A
                 code.append(f"LOAD_B_IMM {value}")  # Load right value to REG_B
                 code.append(operation)  # A = A op B
-                return code
+                return ["# Optimized: " + operation] + code
 
             if right_code[0].startswith("LOAD_A_MEM"):
                 # If right operand is a memory reference
@@ -484,7 +484,7 @@ class ExpressionOptimizer:
                 code = left_code.copy()  # Load left value to REG_A
                 code.append(f"LOAD_B_MEM {address}")  # Load right value to REG_B
                 code.append(operation)  # A = A op B
-                return code
+                return ["# Optimized: " + operation] + code
 
         # Fall back to general case
         code = left_code.copy()  # Load left value to REG_A
@@ -494,7 +494,7 @@ class ExpressionOptimizer:
         code.append("LOAD_B_MEM 1")  # Load right value to REG_B
         code.append("LOAD_A_MEM 0")  # Load left value to REG_A
         code.append(operation)  # A = A op B
-        return code
+        return ["# General case: " + operation] + code
 
 
 # Preprocessor for handling include directives
