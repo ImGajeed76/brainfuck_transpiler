@@ -63,6 +63,11 @@ class Parser:
 
         return code
 
+    def _remove_redundant_clears(self, code):
+        # Remove double clears
+        # "[-][-]" -> "[-]"
+        return code.replace("[-][-]", "[-]")
+
     def _move_to(self, cell) -> str:
         code = ">" * (cell - self.cursor) if cell > self.cursor else "<" * (self.cursor - cell)
         self.cursor = cell
