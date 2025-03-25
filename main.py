@@ -1,6 +1,7 @@
 import argparse
+
 from instruction_set_parser import Parser
-from lark_parser import compile_code
+from lark_parser import compile_with_includes
 
 
 def main():
@@ -29,7 +30,7 @@ def main():
     with open(args.input_file) as f:
         code = f.read()
 
-    instructions = compile_code(code)
+    instructions = compile_with_includes(code, args.input_file)
 
     # Save intermediate instructions only in debug mode
     if args.debug:

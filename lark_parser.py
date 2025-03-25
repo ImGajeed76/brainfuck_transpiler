@@ -1,4 +1,6 @@
-from lark import Lark, Transformer, Token
+import os
+
+from lark import Lark, Transformer
 
 # Grammar definition using Lark
 grammar = r"""
@@ -40,7 +42,6 @@ grammar = r"""
     %ignore WS
     %ignore COMMENT
 """
-
 
 
 class OptimizedCompiler(Transformer):
@@ -273,11 +274,79 @@ def compile_code(source_code):
     for var_name, address in sorted(compiler.symbol_table.items(), key=lambda x: x[1]):
         symbol_table_comments.append(f"# {var_name}: address {address}")
 
-    # Add comments for special memory addresses
-    symbol_table_comments.append(f"# Address 0: Temporary storage for operations")
-    symbol_table_comments.append(f"# Address 255: Temporary storage for operations")
     symbol_table_comments.append("")  # Empty line
 
     # Return combined comments and code
     return '\n'.join(symbol_table_comments + instructions)
 
+
+def preprocess_includes(source_code, current_file=None, included_files=None):
+    """
+    Process #include directives by replacing them with file contents.
+    Checks for circular includes to prevent infinite recursion.
+    """
+    if included_files is None:
+        included_files = set()
+
+    if current_file:
+        included_files.add(os.path.abspath(current_file))
+
+    lines = source_code.split('\n')
+    result = []
+
+    for line in lines:
+        # Check for include directive
+        if line.strip().startswith('#include'):
+            # Extract the filename
+            parts = line.strip().split('"')
+            if len(parts) < 2:
+                raise Exception(f"Invalid include directive: {line}")
+
+            include_file = parts[1]
+
+            # Resolve the path relative to the current file
+            if current_file:
+                include_path = os.path.join(os.path.dirname(current_file), include_file)
+            else:
+                include_path = include_file
+
+            include_path = os.path.abspath(include_path)
+
+            # Check for circular inclusion
+            if include_path in included_files:
+                raise Exception(f"Circular include detected: {include_path}")
+
+            # Read the included file
+            try:
+                with open(include_path, 'r') as f:
+                    include_content = f.read()
+            except FileNotFoundError:
+                raise Exception(f"Include file not found: {include_file}")
+
+            # Recursively process includes in the included file
+            processed_content = preprocess_includes(
+                include_content,
+                current_file=include_path,
+                included_files=included_files.copy()
+            )
+
+            # Add the processed content
+            result.append(f"// Begin included file: {include_file}")
+            result.append(processed_content)
+            result.append(f"// End included file: {include_file}")
+        else:
+            # Regular line, just add it
+            result.append(line)
+
+    return '\n'.join(result)
+
+
+def compile_with_includes(source_code, main_file=None):
+    """
+    Compile source code with include directive support.
+    """
+    # First, process all includes
+    processed_code = preprocess_includes(source_code, current_file=main_file)
+
+    # Then compile using the existing compiler
+    return compile_code(processed_code)
