@@ -178,7 +178,7 @@ The transpiler manages memory allocation for variables. For example:
 
 The transpiler doesn't include a Brainfuck interpreter. To run the generated code:
 
-- Online interpreter: https://onecompiler.com/brainfk
+- Online interpreter: https://copy.sh/brainfuck/
 - Debugging tool: https://www.iamcal.com/misc/bf_debug/
 
 ## Limitations
