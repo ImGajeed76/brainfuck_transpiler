@@ -1,9 +1,11 @@
 import os
-
 from lark import Lark, Transformer
 
-# Grammar definition using Lark
-grammar = r"""
+
+class GrammarDefinition:
+    @staticmethod
+    def get_grammar():
+        return r"""
     program: statement+
 
     statement: variable_declaration
@@ -44,14 +46,88 @@ grammar = r"""
 """
 
 
-class OptimizedCompiler(Transformer):
+# Manage symbol table
+class SymbolTable:
+    def __init__(self):
+        self.symbols = {}  # Maps variable names to memory addresses
+        self.next_address = 2  # Start at address 2, leaving 0 and 1 for temp storage
+
+    def add_symbol(self, name):
+        address = self.next_address
+        self.next_address += 1
+        self.symbols[name] = address
+        return address
+
+    def get_address(self, name):
+        if name not in self.symbols:
+            raise Exception(f"Undefined variable: {name}")
+        return self.symbols[name]
+
+    def has_symbol(self, name):
+        return name in self.symbols
+
+    def get_symbols(self):
+        return self.symbols
+
+
+# Handles code generation details
+class CodeGenerator:
+    @staticmethod
+    def load_immediate(value):
+        if value < 0 or value > 255:
+            raise Exception(f"Value {value} out of range for 8-bit processor")
+        return f"LOAD_A_IMM {value}"
+
+    @staticmethod
+    def load_from_memory(address):
+        return f"LOAD_A_MEM {address}"
+
+    @staticmethod
+    def store_to_memory(address):
+        return f"STORE_A {address}"
+
+    @staticmethod
+    def load_b_immediate(value):
+        return f"LOAD_B_IMM {value}"
+
+    @staticmethod
+    def load_b_from_memory(address):
+        return f"LOAD_B_MEM {address}"
+
+    @staticmethod
+    def add():
+        return "ADD"
+
+    @staticmethod
+    def subtract():
+        return "SUB"
+
+    @staticmethod
+    def input():
+        return "IN_A"
+
+    @staticmethod
+    def output():
+        return "OUT_A"
+
+    @staticmethod
+    def loop_start():
+        return "LOOP_START"
+
+    @staticmethod
+    def loop_end():
+        return "LOOP_END"
+
+
+# Main compiler that handles tree transformation
+class CompilerTransformer(Transformer):
     def __init__(self):
         super().__init__()
-        self.symbol_table = {}  # Maps variable names to memory addresses
-        self.next_address = 1  # Start at address 1, leaving 0 for temp storage
+        self.symbol_table = SymbolTable()
+        self.code_gen = CodeGenerator()
+        self.optimizer = ExpressionOptimizer(self.code_gen)
 
     def program(self, statements):
-        # Combine all generated code
         result = []
         for stmt in statements:
             if stmt:  # Some statements might return None
@@ -59,19 +135,23 @@ class OptimizedCompiler(Transformer):
         return result
 
     def statement(self, items):
-        # Handle statements that might be nested in while loops
         if len(items) == 1:
             return items[0]
         return items
 
     def character(self, items):
-        # Get the character literal with quotes
         char_token = items[0].value
+        char = self._extract_character(char_token)
+        ascii_value = ord(char)
 
-        # Extract the actual character (removing the quotes)
-        # Handle escaped characters if needed
+        if ascii_value < 0 or ascii_value > 255:
+            raise Exception(f"ASCII value {ascii_value} out of range for 8-bit processor")
+
+        return [self.code_gen.load_immediate(ascii_value)]
+
+    def _extract_character(self, char_token):
         if len(char_token) == 3:  # Simple case: 'A'
-            char = char_token[1]
+            return char_token[1]
         elif char_token[1] == '\\':  # Escaped character: '\n'
             escape_map = {
                 '\\n': '\n',
@@ -82,56 +162,39 @@ class OptimizedCompiler(Transformer):
                 '\\0': '\0'
             }
             escaped_seq = char_token[1:3]
-            char = escape_map.get(escaped_seq, escaped_seq[1])
-
-        # Convert to ASCII value
-        ascii_value = ord(char)
-
-        # Ensure it fits in 8 bits
-        if ascii_value < 0 or ascii_value > 255:
-            raise Exception(f"ASCII value {ascii_value} out of range for 8-bit processor")
-
-        return [f"LOAD_A_IMM {ascii_value}"]
+            return escape_map.get(escaped_seq, escaped_seq[1])
+        return char_token[1]
 
     def variable_declaration(self, items):
         var_name = items[0].value
         expr_code = items[1]
 
         # Allocate memory for the variable
-        address = self.next_address
-        self.next_address += 1
-        self.symbol_table[var_name] = address
+        address = self.symbol_table.add_symbol(var_name)
 
         # Generate code to evaluate expression and store it
         code = expr_code.copy()  # Expression result will be in REG_A
-        code.append(f"STORE_A {address}")
+        code.append(self.code_gen.store_to_memory(address))
         return code
 
     def assignment(self, items):
         var_name = items[0].value
         expr_code = items[1]
 
-        if var_name not in self.symbol_table:
-            raise Exception(f"Undefined variable: {var_name}")
-
-        address = self.symbol_table[var_name]
+        address = self.symbol_table.get_address(var_name)
 
         # Generate code to evaluate expression and store it
         code = expr_code.copy()  # Expression result will be in REG_A
-        code.append(f"STORE_A {address}")
+        code.append(self.code_gen.store_to_memory(address))
         return code
 
     def input_statement(self, items):
         var_name = items[0].value
-
-        if var_name not in self.symbol_table:
-            raise Exception(f"Undefined variable: {var_name}")
-
-        address = self.symbol_table[var_name]
+        address = self.symbol_table.get_address(var_name)
 
         code = [
-            "IN_A",
-            f"STORE_A {address}"
+            self.code_gen.input(),
+            self.code_gen.store_to_memory(address)
         ]
         return code
 
@@ -139,7 +202,7 @@ class OptimizedCompiler(Transformer):
         expr_code = items[0]
 
         code = expr_code.copy()  # Expression result will be in REG_A
-        code.append("OUT_A")
+        code.append(self.code_gen.output())
         return code
 
     def while_statement(self, items):
@@ -153,99 +216,27 @@ class OptimizedCompiler(Transformer):
                 body_code.extend(stmt)
 
         code = condition_code.copy()  # Condition result will be in REG_A
-        code.append("LOOP_START")
+        code.append(self.code_gen.loop_start())
         code.extend(body_code)
         code.extend(condition_code)  # Re-evaluate condition
-        code.append("LOOP_END")
+        code.append(self.code_gen.loop_end())
 
         return code
-
-    def _is_simple_expression(self, code):
-        """Check if this is a simple expression (one instruction)"""
-        return len(code) == 1 and (
-                code[0].startswith("LOAD_A_IMM") or
-                code[0].startswith("LOAD_A_MEM")
-        )
 
     def add(self, items):
-        left_code = items[0]
-        right_code = items[1]
-
-        # Optimization for common cases
-        if self._is_simple_expression(right_code):
-            if right_code[0].startswith("LOAD_A_IMM"):
-                # If right operand is immediate, extract the value
-                value = right_code[0].split()[1]
-                code = left_code.copy()  # Load left value to REG_A
-                code.append(f"LOAD_B_IMM {value}")  # Load right value to REG_B
-                code.append("ADD")  # A = A + B
-                return code
-
-            if right_code[0].startswith("LOAD_A_MEM"):
-                # If right operand is a memory reference
-                address = right_code[0].split()[1]
-                code = left_code.copy()  # Load left value to REG_A
-                code.append(f"LOAD_B_MEM {address}")  # Load right value to REG_B
-                code.append("ADD")  # A = A + B
-                return code
-
-        # Fall back to general case
-        code = left_code.copy()  # Load left value to REG_A
-        code.append("STORE_A 0")  # Store to temp location
-        code.extend(right_code)  # Calculate right value to REG_A
-        code.append("STORE_A 255")  # Store to another temp location
-        code.append("LOAD_B_MEM 255")  # Load right value to REG_B
-        code.append("LOAD_A_MEM 0")  # Load left value to REG_A
-        code.append("ADD")  # A = A + B
-        return code
+        return self.optimizer.optimize_binary_operation(items[0], items[1], "ADD")
 
     def subtract(self, items):
-        left_code = items[0]
-        right_code = items[1]
-
-        # Optimization for common cases
-        if self._is_simple_expression(right_code):
-            if right_code[0].startswith("LOAD_A_IMM"):
-                # If right operand is immediate, extract the value
-                value = right_code[0].split()[1]
-                code = left_code.copy()  # Load left value to REG_A
-                code.append(f"LOAD_B_IMM {value}")  # Load right value to REG_B
-                code.append("SUB")  # A = A - B
-                return code
-
-            if right_code[0].startswith("LOAD_A_MEM"):
-                # If right operand is a memory reference
-                address = right_code[0].split()[1]
-                code = left_code.copy()  # Load left value to REG_A
-                code.append(f"LOAD_B_MEM {address}")  # Load right value to REG_B
-                code.append("SUB")  # A = A - B
-                return code
-
-        # Fall back to general case
-        code = left_code.copy()  # Load left value to REG_A
-        code.append("STORE_A 0")  # Store to temp location
-        code.extend(right_code)  # Calculate right value to REG_A
-        code.append("STORE_A 255")  # Store to another temp location
-        code.append("LOAD_B_MEM 255")  # Load right value to REG_B
-        code.append("LOAD_A_MEM 0")  # Load left value to REG_A
-        code.append("SUB")  # A = A - B
-        return code
+        return self.optimizer.optimize_binary_operation(items[0], items[1], "SUB")
 
     def variable(self, items):
         var_name = items[0].value
-
-        if var_name not in self.symbol_table:
-            raise Exception(f"Undefined variable: {var_name}")
-
-        address = self.symbol_table[var_name]
-        return [f"LOAD_A_MEM {address}"]
+        address = self.symbol_table.get_address(var_name)
+        return [self.code_gen.load_from_memory(address)]
 
     def number(self, items):
         value = int(items[0].value)
-        if value < 0 or value > 255:
-            raise Exception(f"Value {value} out of range for 8-bit processor")
-
-        return [f"LOAD_A_IMM {value}"]
+        return [self.code_gen.load_immediate(value)]
 
     def parenthesized(self, items):
         return items[0]
@@ -262,91 +253,151 @@ class OptimizedCompiler(Transformer):
         return items
 
 
+# Handles optimizations for expressions
+class ExpressionOptimizer:
+    def __init__(self, code_gen):
+        self.code_gen = code_gen
+
+    def _is_simple_expression(self, code):
+        """Check if this is a simple expression (one instruction)"""
+        return len(code) == 1 and (
+                code[0].startswith("LOAD_A_IMM") or
+                code[0].startswith("LOAD_A_MEM")
+        )
+
+    def optimize_binary_operation(self, left_code, right_code, operation):
+        # Optimization for common cases
+        if self._is_simple_expression(right_code):
+            if right_code[0].startswith("LOAD_A_IMM"):
+                # If right operand is immediate, extract the value
+                value = right_code[0].split()[1]
+                code = left_code.copy()  # Load left value to REG_A
+                code.append(f"LOAD_B_IMM {value}")  # Load right value to REG_B
+                code.append(operation)  # A = A op B
+                return code
+
+            if right_code[0].startswith("LOAD_A_MEM"):
+                # If right operand is a memory reference
+                address = right_code[0].split()[1]
+                code = left_code.copy()  # Load left value to REG_A
+                code.append(f"LOAD_B_MEM {address}")  # Load right value to REG_B
+                code.append(operation)  # A = A op B
+                return code
+
+        # Fall back to general case
+        code = left_code.copy()  # Load left value to REG_A
+        code.append("STORE_A 0")  # Store to temp location
+        code.extend(right_code)  # Calculate right value to REG_A
+        code.append("STORE_A 1")  # Store to another temp location
+        code.append("LOAD_B_MEM 1")  # Load right value to REG_B
+        code.append("LOAD_A_MEM 0")  # Load left value to REG_A
+        code.append(operation)  # A = A op B
+        return code
+
+
+# Preprocessor for handling include directives
+class Preprocessor:
+    @staticmethod
+    def process_includes(source_code, current_file=None, included_files=None):
+        """
+        Process #include directives by replacing them with file contents.
+        Checks for circular includes to prevent infinite recursion.
+        """
+        if included_files is None:
+            included_files = set()
+
+        if current_file:
+            included_files.add(os.path.abspath(current_file))
+
+        lines = source_code.split('\n')
+        result = []
+
+        for line in lines:
+            # Check for include directive
+            if line.strip().startswith('#include'):
+                # Extract the filename
+                parts = line.strip().split('"')
+                if len(parts) < 2:
+                    raise Exception(f"Invalid include directive: {line}")
+
+                include_file = parts[1]
+
+                # Resolve the path relative to the current file
+                if current_file:
+                    include_path = os.path.join(os.path.dirname(current_file), include_file)
+                else:
+                    include_path = include_file
+
+                include_path = os.path.abspath(include_path)
+
+                # Check for circular inclusion
+                if include_path in included_files:
+                    raise Exception(f"Circular include detected: {include_path}")
+
+                # Read the included file
+                try:
+                    with open(include_path, 'r') as f:
+                        include_content = f.read()
+                except FileNotFoundError:
+                    raise Exception(f"Include file not found: {include_file}")
+
+                # Recursively process includes in the included file
+                processed_content = Preprocessor.process_includes(
+                    include_content,
+                    current_file=include_path,
+                    included_files=included_files.copy()
+                )
+
+                # Add the processed content
+                result.append(f"// Begin included file: {include_file}")
+                result.append(processed_content)
+                result.append(f"// End included file: {include_file}")
+            else:
+                # Regular line, just add it
+                result.append(line)
+
+        return '\n'.join(result)
+
+
+# Main compiler class that orchestrates the compilation process
+class Compiler:
+    def __init__(self):
+        self.parser = Lark(GrammarDefinition.get_grammar(), start='program', parser='lalr')
+
+    def compile(self, source_code):
+        tree = self.parser.parse(source_code)
+
+        transformer = CompilerTransformer()
+        instructions = transformer.transform(tree)
+
+        # Generate symbol table information as comments
+        symbol_table_comments = ["# Memory map:"]
+        for var_name, address in sorted(transformer.symbol_table.get_symbols().items(), key=lambda x: x[1]):
+            symbol_table_comments.append(f"# {var_name}: address {address}")
+
+        symbol_table_comments.append("")  # Empty line
+
+        # Return combined comments and code
+        return '\n'.join(symbol_table_comments + instructions)
+
+    def compile_with_includes(self, source_code, main_file=None):
+        # First, process all includes
+        processed_code = Preprocessor.process_includes(source_code, current_file=main_file)
+
+        # Then compile using the existing compiler
+        return self.compile(processed_code)
+
+
+# Maintain the original interface functions for backward compatibility
 def compile_code(source_code):
-    parser = Lark(grammar, start='program', parser='lalr')
-    tree = parser.parse(source_code)
-
-    compiler = OptimizedCompiler()
-    instructions = compiler.transform(tree)
-
-    # Generate symbol table information as comments
-    symbol_table_comments = ["# Memory map:"]
-    for var_name, address in sorted(compiler.symbol_table.items(), key=lambda x: x[1]):
-        symbol_table_comments.append(f"# {var_name}: address {address}")
-
-    symbol_table_comments.append("")  # Empty line
-
-    # Return combined comments and code
-    return '\n'.join(symbol_table_comments + instructions)
+    compiler = Compiler()
+    return compiler.compile(source_code)
 
 
 def preprocess_includes(source_code, current_file=None, included_files=None):
-    """
-    Process #include directives by replacing them with file contents.
-    Checks for circular includes to prevent infinite recursion.
-    """
-    if included_files is None:
-        included_files = set()
-
-    if current_file:
-        included_files.add(os.path.abspath(current_file))
-
-    lines = source_code.split('\n')
-    result = []
-
-    for line in lines:
-        # Check for include directive
-        if line.strip().startswith('#include'):
-            # Extract the filename
-            parts = line.strip().split('"')
-            if len(parts) < 2:
-                raise Exception(f"Invalid include directive: {line}")
-
-            include_file = parts[1]
-
-            # Resolve the path relative to the current file
-            if current_file:
-                include_path = os.path.join(os.path.dirname(current_file), include_file)
-            else:
-                include_path = include_file
-
-            include_path = os.path.abspath(include_path)
-
-            # Check for circular inclusion
-            if include_path in included_files:
-                raise Exception(f"Circular include detected: {include_path}")
-
-            # Read the included file
-            try:
-                with open(include_path, 'r') as f:
-                    include_content = f.read()
-            except FileNotFoundError:
-                raise Exception(f"Include file not found: {include_file}")
-
-            # Recursively process includes in the included file
-            processed_content = preprocess_includes(
-                include_content,
-                current_file=include_path,
-                included_files=included_files.copy()
-            )
-
-            # Add the processed content
-            result.append(f"// Begin included file: {include_file}")
-            result.append(processed_content)
-            result.append(f"// End included file: {include_file}")
-        else:
-            # Regular line, just add it
-            result.append(line)
-
-    return '\n'.join(result)
+    return Preprocessor.process_includes(source_code, current_file, included_files)
 
 
 def compile_with_includes(source_code, main_file=None):
-    """
-    Compile source code with include directive support.
-    """
-    # First, process all includes
-    processed_code = preprocess_includes(source_code, current_file=main_file)
-
-    # Then compile using the existing compiler
-    return compile_code(processed_code)
+    compiler = Compiler()
+    return compiler.compile_with_includes(source_code, main_file)
