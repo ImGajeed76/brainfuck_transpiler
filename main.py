@@ -34,9 +34,19 @@ def main():
 
     # Save intermediate instructions only in debug mode
     if args.debug:
-        with open("instructions.txt", "w") as f:
-            f.write(instructions)
-        print("Debug: Intermediate instructions written to instructions.txt")
+        # Format instructions for debugging
+        indent_cnt = 0
+        formatted_instructions = []
+        for line in instructions.split("\n"):
+            if line.startswith("LOOP_END"):
+                indent_cnt -= 1
+            formatted_instructions.append("    " * indent_cnt + line)
+            if line.startswith("LOOP_START"):
+                indent_cnt += 1
+
+        with open("instructions.bfi", "w") as f:
+            f.write("\n".join(formatted_instructions))
+        print("Debug: Intermediate instructions written to instructions.bfi")
 
     # Parse instructions with debug flag
     instruction_parser = Parser(debug=args.debug)
