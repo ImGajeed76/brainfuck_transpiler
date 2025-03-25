@@ -13,6 +13,7 @@ class GrammarDefinition:
              | input_statement
              | output_statement
              | while_statement
+             | if_statement
              | expression ";"
 
     variable_declaration: "var" IDENTIFIER "=" expression ";"
@@ -24,6 +25,10 @@ class GrammarDefinition:
     output_statement: "output" "(" expression ")" ";"
 
     while_statement: "while" "(" expression ")" "{" statement+ "}"
+
+    if_statement: "if" "(" expression ")" "{" statement+ "}" else_clause?
+
+    else_clause: "else" "{" statement+ "}"
 
     expression: term
               | expression "+" term -> add
@@ -251,6 +256,77 @@ class CompilerTransformer(Transformer):
         if len(items) == 1:
             return items[0]
         return items
+
+    def if_statement(self, items):
+        condition_code = items[0]
+        if_body_statements = items[1:-1] if len(items) > 2 and isinstance(items[-1], list) else items[1:]
+        else_clause = items[-1] if len(items) > 2 and isinstance(items[-1], list) else None
+
+        # Collect all statement code in the if body
+        if_body_code = []
+        for stmt in if_body_statements:
+            if stmt:  # Some statements might return None
+                if_body_code.extend(stmt)
+
+        # Check if there's an else block
+        has_else = else_clause is not None
+
+        # Generate code
+        code = []
+
+        # Create a control variable for the else block if needed
+        go_else_address = None
+        if has_else:
+            if not self.symbol_table.has_symbol("go_else"):
+                go_else_address = self.symbol_table.add_symbol("go_else")
+            else:
+                go_else_address = self.symbol_table.get_address("go_else")
+
+            # Initialize go_else to 1
+            code.append(self.code_gen.load_immediate(1))
+            code.append(self.code_gen.store_to_memory(go_else_address))
+
+        # Evaluate condition
+        code.extend(condition_code)
+
+        # If condition is true, execute if block
+        code.append(self.code_gen.loop_start())
+        code.extend(if_body_code)
+
+        # Set go_else to 0 to skip the else block if it exists
+        if has_else:
+            code.append(self.code_gen.load_immediate(0))
+            code.append(self.code_gen.store_to_memory(go_else_address))
+
+        # Add a dummy load of 0 to ensure condition is false after executing if block
+        code.append(self.code_gen.load_immediate(0))
+        code.append(self.code_gen.loop_end())
+
+        # If there's an else block, execute it conditionally
+        if has_else:
+            else_body_code = else_clause
+
+            code.append(self.code_gen.load_from_memory(go_else_address))
+            code.append(self.code_gen.loop_start())
+            code.extend(else_body_code)
+
+            # Reset go_else to 0 after executing else block
+            code.append(self.code_gen.load_immediate(0))
+            code.append(self.code_gen.store_to_memory(go_else_address))
+
+            # Add a dummy load of 0 to ensure condition is false after executing else block
+            code.append(self.code_gen.load_immediate(0))
+            code.append(self.code_gen.loop_end())
+
+        return code
+
+    def else_clause(self, items):
+        # Collect all statements in the else clause
+        else_body_code = []
+        for stmt in items:
+            if stmt:  # Some statements might return None
+                else_body_code.extend(stmt)
+        return else_body_code
 
 
 # Handles optimizations for expressions
