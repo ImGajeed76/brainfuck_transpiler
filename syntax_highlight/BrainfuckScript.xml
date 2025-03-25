@@ -12,6 +12,7 @@
     </options>
     <keywords keywords="else;if;var;while" ignore_case="false" />
     <keywords2 keywords="input;output" />
+    <keywords3 keywords="true;false" />
     <keywords4 keywords="#define;#include" />
   </highlighting>
   <extensionMap>

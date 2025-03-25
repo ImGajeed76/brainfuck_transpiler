@@ -11,6 +11,7 @@ BrainfuckScript (BFS) is a human-readable programming language that transpiles t
 - **File inclusion**: Include other BFS files in your code
 - **Control flow**: Conditional statements (`if`/`else`) and loops (`while`)
 - **I/O operations**: Read input and output characters
+- **Comparison operators**: Use `==` and `!=` for comparisons (other operators not supported)
 
 ## Installation
 
