@@ -48,7 +48,8 @@ The following example creates a pyramid of asterisks:
 ```bfs
 #define SPACE ' '
 #define STAR '*'
-#define NEWLINE '\n'
+#define NEWLINE '
+'
 #define HEIGHT 7
 
 // Pyramid height
@@ -206,3 +207,15 @@ This project is licensed under the GNU General Public License v3.0 - see the LIC
 ## Contributing
 
 Contributions are welcome! Feel free to submit issues or pull requests.
+
+---
+
+## Author
+
+**Oliver Seifert** - Software Engineer & Electronics Technician
+
+- Portfolio: [oseifert.ch](https://oseifert.ch)
+- GitHub: [@ImGajeed76](https://github.com/ImGajeed76)
+- Blog: [oseifert.ch/blog](https://oseifert.ch/blog)
+
+See my other projects at [oseifert.ch/projects](https://oseifert.ch/projects)
