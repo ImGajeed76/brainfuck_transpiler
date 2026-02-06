@@ -209,13 +209,4 @@ This project is licensed under the GNU General Public License v3.0 - see the LIC
 Contributions are welcome! Feel free to submit issues or pull requests.
 
 ---
-
-## Author
-
-**Oliver Seifert** - Software Engineer & Electronics Technician
-
-- Portfolio: [oseifert.ch](https://oseifert.ch)
-- GitHub: [@ImGajeed76](https://github.com/ImGajeed76)
-- Blog: [oseifert.ch/blog](https://oseifert.ch/blog)
-
-See my other projects at [oseifert.ch/projects](https://oseifert.ch/projects)
+Built with ❤️ by [Oliver Seifert](https://oseifert.ch)
